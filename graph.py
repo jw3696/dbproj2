@@ -155,12 +155,47 @@ def q5(client):
 def q6(client):
 	q = """
 	WITH TRIANGLE AS(
-	SELECT DISTINCT g1.src, g2.src, g3.src
+	SELECT DISTINCT g1.src AS n1, g2.src AS n2, g3.src AS n3
 	FROM GRAPH AS g1 JOIN GRAPH AS g2 ON g1.dst = g2.src JOIN GRAPH AS g3 ON g2.dst = g3.src
-	WHERE g1.src = g3.dst AND g1.src != g2.src AND g2.src != g1.src
+	WHERE g1.src = g3.dst AND g1.src != g2.src AND g2.src != g3.src AND g3.src != g1.src
 	)
 
+	SELECT COUNT(DISTINCT n1, n2, n3)
+	FROM (SELECT n1 AS n1, n2 AS n2, n3 AS n3 
+	FROM TRIANGLE
+	WHERE n1 < n2 AND n2 < n3
+
+	UNION
 	
+	SELECT n1 AS n1, n3 AS n2, n2 AS n3
+	FROM TRIANGLE
+	WHERE n1 < n3 AND n3 < n2
+
+	UNION
+
+	SELECT n2 AS n1, n1 AS n2, n3 AS n3
+	FROM TRIANGLE
+	WHERE n2 < n1 AND n1 < n3
+
+	UNION
+
+	SELECT n2 AS n1, n3 AS n2, n1 AS n3
+	FROM TRIANGLE
+	WHERE n2 < n3 AND n3 < n1
+
+	UNION
+
+	SELECT n3 AS n1, n1 AS n2, n2 AS n3
+	FROM TRIANGLE
+	WHERE n3 < n1 AND n1 < n2
+
+	UNION
+
+	SELECT n3 AS n1, n2 AS n2, n1 AS n3
+	FROM TRIANGLE
+	WHERE n3 < n2 AND n2 < n1
+	)
+
 	"""
 
 	job = client.query(q)
