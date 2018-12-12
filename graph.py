@@ -33,7 +33,7 @@ def q2(client):
 	return list(result2)
 	#return []
 
-# SQL query for Question 3. You must edit this funtion.
+# SQL query for Question 3. You must edit this function.
 # This function should return a list of source nodes and destination nodes in the graph.
 def q3(client):
 	q3 = """select twitter_username as src, substr(REGEXP_EXTRACT(text, "@[a-zA-Z0-9_.+-]+"),2,100) AS dst from `w4111-columbia.graph.tweets` \
@@ -71,14 +71,84 @@ def q3(client):
 # SQL query for Question 4. You must edit this funtion.
 # This function should return a list containing the twitter username of the users having the max indegree and max outdegree.
 def q4(client):
+	# Query Explanation
+	# Table INDEGREE: count the indegree for each user and return the one with the highest indegree, and a column
+	# 				  rank, which is 1 (used for join)
+	# Table OUTDEGREE: count the outdegree for each user and return the one with the highest outdegree, and a column
+	# 				  rank, which is 1 (used for join)
+	# Join the two table on the rank so that we have a row that have two columns: max_indegree and max_outdegree
 
-	return []
+	q = """
+	WITH INDEGREE AS(
+	SELECT COUNT(DISTINCT src) AS max_indegree, ROW_NUMBER() OVER (ORDER BY max_indegree) AS rank
+	FROM GRAPH
+	GROUP BY dst
+	ORDER BY max_indegree
+	LIMIT 1),
+
+	OUTDEGREEE AS(
+	SELECT COUNT(DISTINCT dst) AS max_outdegree, ROW_NUMBER() OVER (ORDER BY max_outdegree) AS rank
+	FROM GRAPH
+	GROUP BY src
+	ORDER BY max_outdegree
+	LIMIT 1)
+
+	SELECT max_indegree, max_outdegree
+	FROM INDEGREE AS I JOIN OUTDEGREE AS O ON rank
+	"""
+
+	job4 = client.query(q)
+
+	result = job.result()
+	return list(result)
 
 # SQL query for Question 5. You must edit this funtion.
 # This function should return a list containing value of the conditional probability.
 def q5(client):
+	# Query Explanation:
+	# Table AVGLIKE: get the average like for each user on all their tweets
+	# Table INDEGREE: get the indegree of each user
+	# Table POPULAR: get the a list of popular people
+	# Table UNPOPULAR: get a list of unpopular people
+	# Calculate the count of tweet initialized by unpopular people and find out the number of tweets in the previous group
+	# that refer a popular people. Then we will get the conditional probability
 
-	return []
+	q = """
+	WITH AVGLIKE AS(
+	SELECT twitter_username, AVG(like_num) AS avg
+	FROM `w4111-columbia.graph.tweets`
+	GROUP BY twitter_username
+	),
+
+	INDEGREE AS(
+	SELECT dst, COUNT(src) AS count
+	FROM GRAPH
+	GROUP BY dst
+	)
+
+	POPULAR AS(
+	SELECT twitter_username
+	FROM `w4111-columbia.graph.tweets` 
+	WHERE twitter_username IN (SELECT twitter_username FROM AVGLIKE WHERE avg >= (SELECT AVG(avg) FROM AVGLIKE)) AND
+	twitter_username IN (SELECT dst FROM INDEGREE WHERE count >= (SELECT AVG(count) FROM INDEGREE))
+	)
+
+	UNPOPULAR AS(
+	SELECT twitter_username
+	FROM `w4111-columbia.graph.tweets` 
+	WHERE twitter_username IN (SELECT twitter_username FROM AVGLIKE WHERE avg < (SELECT AVG(avg) FROM AVGLIKE)) AND
+	twitter_username IN (SELECT dst FROM INDEGREE WHERE count < (SELECT AVG(count) FROM INDEGREE))
+	)
+
+	SELECT (SELECT COUNT(*) FROM SAMPLE WHERE dst IN (SELECT twitter_username FROM POPULAR))::numeric /
+	(SELECT COUNT(*) FROM SAMPLE) AS popular_unpopular
+	FROM (SELECT COUNT(*) FROM GRAPH WHERE src IN (SELECT twitter_username FROM UNPOPULAR)) AS SAMPLE
+	"""
+
+	job = client.query(q)
+
+	result = job.result()
+	return list(result)
 
 # SQL query for Question 6. You must edit this funtion.
 # This function should return a list containing the value for the number of triangles in the graph.
@@ -191,7 +261,7 @@ def main(pathtocred):
 	client = bigquery.Client.from_service_account_json(pathtocred)
 
 	#funcs_to_test = [q1, q2, q3, q4, q5, q6, q7]
-	funcs_to_test = [q3]
+	funcs_to_test = [q5]
 	#funcs_to_test = [testquery]
 	for func in funcs_to_test:
 		rows = func(client)
