@@ -80,17 +80,17 @@ def q4(client):
 
 	q = """
 	WITH INDEGREE AS(
-	SELECT COUNT(DISTINCT src) AS max_indegree, ROW_NUMBER() OVER (ORDER BY COUNT(DISTINCT src) DESC) AS rank
+	SELECT COUNT(src) AS max_indegree, ROW_NUMBER() OVER (ORDER BY COUNT(src) DESC) AS rank
 	FROM dataset1.GRAPH
 	GROUP BY dst
-	ORDER BY COUNT(DISTINCT src) DESC
+	ORDER BY COUNT(src) DESC
 	LIMIT 1),
 
 	OUTDEGREE AS(
-	SELECT COUNT(DISTINCT dst) AS max_outdegree, ROW_NUMBER() OVER (ORDER BY COUNT(DISTINCT dst) DESC) AS rank
+	SELECT COUNT(dst) AS max_outdegree, ROW_NUMBER() OVER (ORDER BY COUNT(dst) DESC) AS rank
 	FROM dataset1.GRAPH
 	GROUP BY src
-	ORDER BY COUNT(DISTINCT dst) DESC
+	ORDER BY COUNT(dst) DESC
 	LIMIT 1)
 
 	SELECT I.max_indegree, O.max_outdegree
@@ -165,46 +165,50 @@ def q6(client):
 	q = """
 	WITH TRIANGLE AS(
 	SELECT DISTINCT g1.src AS n1, g2.src AS n2, g3.src AS n3
-	FROM GRAPH AS g1 JOIN GRAPH AS g2 ON g1.dst = g2.src JOIN GRAPH AS g3 ON g2.dst = g3.src
+	FROM dataset1.GRAPH AS g1 JOIN dataset1.GRAPH AS g2 ON g1.dst = g2.src JOIN dataset1.GRAPH AS g3 ON g2.dst = g3.src
 	WHERE g1.src = g3.dst AND g1.src != g2.src AND g2.src != g3.src AND g3.src != g1.src
-	)
-
-	SELECT COUNT(DISTINCT a1, a2, a3)
-	FROM (SELECT n1 AS a1, n2 AS a2, n3 AS a3 
+	),
+	
+	DISTINCT_TRIANGLE AS(
+	SELECT DISTINCT a1, a2, a3
+	FROM (
+	SELECT n1 AS a1, n2 AS a2, n3 AS a3 
 	FROM TRIANGLE
 	WHERE n1 < n2 AND n2 < n3
 
-	UNION
+	UNION ALL
 	
 	SELECT n1 AS a1, n3 AS a2, n2 AS a3
 	FROM TRIANGLE
 	WHERE n1 < n3 AND n3 < n2
 
-	UNION
+	UNION ALL
 
 	SELECT n2 AS a1, n1 AS a2, n3 AS a3
 	FROM TRIANGLE
 	WHERE n2 < n1 AND n1 < n3
 
-	UNION
+	UNION ALL
 
 	SELECT n2 AS a1, n3 AS a2, n1 AS a3
 	FROM TRIANGLE
 	WHERE n2 < n3 AND n3 < n1
 
-	UNION
+	UNION ALL
 
 	SELECT n3 AS a1, n1 AS a2, n2 AS a3
 	FROM TRIANGLE
 	WHERE n3 < n1 AND n1 < n2
 
-	UNION
+	UNION ALL
 
 	SELECT n3 AS a1, n2 AS a2, n1 AS a3
 	FROM TRIANGLE
 	WHERE n3 < n2 AND n2 < n1
-	)
+	))
 
+	SELECT COUNT(*) AS no_of_triangles
+	FROM DISTINCT_TRIANGLE
 	"""
 
 	job = client.query(q)
@@ -317,7 +321,7 @@ def main(pathtocred):
 	client = bigquery.Client.from_service_account_json(pathtocred)
 
 	#funcs_to_test = [q1, q2, q3, q4, q5, q6, q7]
-	funcs_to_test = [q5]
+	funcs_to_test = [q6]
 	#funcs_to_test = [testquery]
 	for func in funcs_to_test:
 		rows = func(client)
