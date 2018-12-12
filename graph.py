@@ -4,6 +4,7 @@ from google.cloud import bigquery
 uni1 = 'jw3696' # Your uni
 uni2 = 'hz2562' # Partner's uni. If you don't have a partner, put None
 
+
 # Test function
 def testquery(client):
 	q = """select * from `w4111-columbia.graph.tweets` limit 3"""
@@ -16,7 +17,9 @@ def testquery(client):
 # SQL query for Question 1. You must edit this funtion.
 # This function should return a list of IDs and the corresponding text.
 def q1(client):
-	q1 = """select id, text from `w4111-columbia.graph.tweets` where text like \'%going live%\' and text like \'%https://%\'"""
+	q1 = """SELECT id, text 
+			FROM `w4111-columbia.graph.tweets` 
+			WHERE text LIKE \'%going live%\' AND text LIKE \'%www.twitch%\'"""
 	job1 = client.query(q1)
 
 	result1 = job1.result()
@@ -26,59 +29,39 @@ def q1(client):
 # SQL query for Question 2. You must edit this funtion.
 # This function should return a list of days and their corresponding average likes.
 def q2(client):
-	q2 = """select SUBSTR(create_time,1,3) AS day, avg(like_num) as avg_likes from `w4111-columbia.graph.tweets` group by day order by avg_likes desc limit 1"""
+	q2 = """SELECT SUBSTR(create_time,1,3) AS day, avg(like_num) AS avg_likes 
+			FROM `w4111-columbia.graph.tweets` 
+			GROUP BY day 
+			ORDER BY avg_likes desc
+			LIMIT 1"""
 	job2 = client.query(q2)
 
 	result2 = job2.result()
 	return list(result2)
 	#return []
 
-# SQL query for Question 3. You must edit this function.
+# SQL query for Question 3. You must edit this funtion.
 # This function should return a list of source nodes and destination nodes in the graph.
 def q3(client):
-	q3 = """select twitter_username as src, substr(REGEXP_EXTRACT(text, "@[a-zA-Z0-9_.+-]+"),2,100) AS dst from `w4111-columbia.graph.tweets` \
+	q3 = """SELECT twitter_username AS src, REGEXP_EXTRACT(text, "@([a-zA-Z0-9_.+-]+)") AS dst
+			FROM `w4111-columbia.graph.tweets`
+			WHERE text LIKE \'%@%\' 
+			GROUP BY src,dst"""
+
+	sql = """select twitter_username as src, REGEXP_EXTRACT(text, "@([a-zA-Z0-9_.+-]+)") AS dst from [w4111-columbia.graph.tweets] \
 			where text like \'%@%\' group by src,dst"""
+	save(sql)
 
 	job3 = client.query(q3)
 
 	result3 = job3.result()
-	
-
-	dataset_id = 'dataset1'
-
-	job_config = bigquery.QueryJobConfig()
-	# Set use_legacy_sql to True to use legacy SQL syntax.
-	job_config.use_legacy_sql = True
-	# Set the destination table
-	table_ref = client.dataset(dataset_id).table('edges')
-	job_config.destination = table_ref
-	job_config.allow_large_results = True
-
-	# Start the query, passing in the extra configuration.
-	query_job = client.query(
-		q3,
-		# Location must match that of the dataset(s) referenced in the query
-		# and of the destination table.
-		location='US',
-		job_config=job_config)  # API request - starts the query
-
-	query_job.result()  # Waits for the query to finish
-	print('Query results loaded to table {}'.format(table_ref.path))
-
 	return list(result3)
 	#return []
 
 # SQL query for Question 4. You must edit this funtion.
 # This function should return a list containing the twitter username of the users having the max indegree and max outdegree.
 def q4(client):
-	# Query Explanation
-	# Table INDEGREE: count the indegree for each user and return the one with the highest indegree, and a column
-	# 				  rank, which is 1 (used for join)
-	# Table OUTDEGREE: count the outdegree for each user and return the one with the highest outdegree, and a column
-	# 				  rank, which is 1 (used for join)
-	# Join the two table on the rank so that we have a row that have two columns: max_indegree and max_outdegree
-
-	q = """
+	q4 = """
 	WITH INDEGREE AS(
 	SELECT COUNT(DISTINCT src) AS max_indegree, ROW_NUMBER() OVER (ORDER BY COUNT(DISTINCT src) DESC) AS rank
 	FROM dataset1.GRAPH
@@ -96,24 +79,15 @@ def q4(client):
 	SELECT I.max_indegree, O.max_outdegree
 	FROM INDEGREE AS I JOIN OUTDEGREE AS O ON I.rank = O.rank
 	"""
+	job4 = client.query(q4)
 
-	job = client.query(q)
-
-	result = job.result()
-	return list(result)
+	result4 = job4.result()
+	return list(result4)
+	#return []
 
 # SQL query for Question 5. You must edit this funtion.
 # This function should return a list containing value of the conditional probability.
 def q5(client):
-	# Query Explanation:
-	# Table AVGLIKE: get the average like for each user on all their tweets
-	# Table INDEGREE: get the indegree of each user
-	# Table POPULAR: get the a list of popular people
-	# Table UNPOPULAR: get a list of unpopular people
-	# Table SAMPLE: the edge that has src as unpopular people
-	# Calculate the count of tweet initialized by unpopular people and find out the number of tweets in the previous group
-	# that refer a popular people. Then we will get the conditional probability
-
 	q = """
 	WITH AVGLIKE AS(
 	SELECT twitter_username, AVG(like_num) AS avg
@@ -158,6 +132,7 @@ def q5(client):
 	print(df.head(10))
 
 	return list(result)
+	#return []
 
 # SQL query for Question 6. You must edit this funtion.
 # This function should return a list containing the value for the number of triangles in the graph.
@@ -211,6 +186,8 @@ def q6(client):
 
 	result = job.result()
 	return list(result)
+
+	#return []
 
 # SQL query for Question 7. You must edit this funtion.
 # This function should return a list containing the twitter username and their corresponding PageRank.
@@ -311,13 +288,37 @@ def save_table():
 	query_job.result()  # Waits for the query to finish
 	print('Query results loaded to table {}'.format(table_ref.path))
 
+def save(sql):
+	client = bigquery.Client()
+	dataset_id = 'dataset1'
+
+	job_config = bigquery.QueryJobConfig()
+	# Set use_legacy_sql to True to use legacy SQL syntax.
+	job_config.use_legacy_sql = True
+	# Set the destination table
+	table_ref = client.dataset(dataset_id).table('GRAPH')
+	job_config.destination = table_ref
+	job_config.allow_large_results = True
+	#sql = """select * from [w4111-columbia.graph.tweets] limit 3"""
+
+	# Start the query, passing in the extra configuration.
+	query_job = client.query(
+		sql,
+		# Location must match that of the dataset(s) referenced in the query
+		# and of the destination table.
+		location='US',
+		job_config=job_config)  # API request - starts the query
+
+	query_job.result()  # Waits for the query to finish
+	print('Query results loaded to table {}'.format(table_ref.path))
+
 @click.command()
 @click.argument("PATHTOCRED", type=click.Path(exists=True))
 def main(pathtocred):
 	client = bigquery.Client.from_service_account_json(pathtocred)
 
 	#funcs_to_test = [q1, q2, q3, q4, q5, q6, q7]
-	funcs_to_test = [q5]
+	funcs_to_test = [q3]
 	#funcs_to_test = [testquery]
 	for func in funcs_to_test:
 		rows = func(client)
