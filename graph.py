@@ -97,7 +97,6 @@ def q4(client):
 	FROM INDEGREE AS I JOIN OUTDEGREE AS O ON I.rank = O.rank
 	"""
 
-
 	job = client.query(q)
 
 	result = job.result()
@@ -111,6 +110,7 @@ def q5(client):
 	# Table INDEGREE: get the indegree of each user
 	# Table POPULAR: get the a list of popular people
 	# Table UNPOPULAR: get a list of unpopular people
+	# Table SAMPLE: the edge that has src as unpopular people
 	# Calculate the count of tweet initialized by unpopular people and find out the number of tweets in the previous group
 	# that refer a popular people. Then we will get the conditional probability
 
@@ -123,32 +123,40 @@ def q5(client):
 
 	INDEGREE AS(
 	SELECT dst, COUNT(src) AS count
-	FROM GRAPH
+	FROM dataset1.GRAPH
 	GROUP BY dst
-	)
+	),
 
 	POPULAR AS(
 	SELECT twitter_username
 	FROM `w4111-columbia.graph.tweets` 
 	WHERE twitter_username IN (SELECT twitter_username FROM AVGLIKE WHERE avg >= (SELECT AVG(avg) FROM AVGLIKE)) AND
 	twitter_username IN (SELECT dst FROM INDEGREE WHERE count >= (SELECT AVG(count) FROM INDEGREE))
-	)
+	),
 
 	UNPOPULAR AS(
 	SELECT twitter_username
-	FROM `w4111-columbia.graph.tweets` 
-	WHERE twitter_username IN (SELECT twitter_username FROM AVGLIKE WHERE avg < (SELECT AVG(avg) FROM AVGLIKE)) AND
+	FROM `w4111-columbia.graph.tweets`	WHERE twitter_username IN (SELECT twitter_username FROM AVGLIKE WHERE avg < (SELECT AVG(avg) FROM AVGLIKE)) AND
 	twitter_username IN (SELECT dst FROM INDEGREE WHERE count < (SELECT AVG(count) FROM INDEGREE))
+	),
+
+	SAMPLE AS(
+	SELECT *
+	FROM dataset1.GRAPH
+	WHERE src IN (SELECT twitter_username FROM UNPOPULAR)
 	)
 
-	SELECT (SELECT COUNT(*) FROM SAMPLE WHERE dst IN (SELECT twitter_username FROM POPULAR))::numeric /
-	(SELECT COUNT(*) FROM SAMPLE) AS popular_unpopular
-	FROM (SELECT COUNT(*) FROM GRAPH WHERE src IN (SELECT twitter_username FROM UNPOPULAR)) AS SAMPLE
+	SELECT IEEE_DIVIDE((SELECT COUNT(*) FROM SAMPLE WHERE dst IN (SELECT twitter_username FROM POPULAR)),
+	(SELECT COUNT(*) FROM SAMPLE)) AS popular_unpopular
 	"""
 
 	job = client.query(q)
 
 	result = job.result()
+
+	df = job.to_dataframe()
+	print(df.head(10))
+
 	return list(result)
 
 # SQL query for Question 6. You must edit this funtion.
@@ -309,7 +317,7 @@ def main(pathtocred):
 	client = bigquery.Client.from_service_account_json(pathtocred)
 
 	#funcs_to_test = [q1, q2, q3, q4, q5, q6, q7]
-	funcs_to_test = [q4]
+	funcs_to_test = [q5]
 	#funcs_to_test = [testquery]
 	for func in funcs_to_test:
 		rows = func(client)
