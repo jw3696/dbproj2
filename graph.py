@@ -16,7 +16,7 @@ def testquery(client):
 # SQL query for Question 1. You must edit this funtion.
 # This function should return a list of IDs and the corresponding text.
 def q1(client):
-	q1 = """select id, text from `w4111-columbia.graph.tweets` where text like \'%going live%\' and text like \'%https://%\'"""
+	q1 = """select id, text from `w4111-columbia.graph.tweets` where text like \'%going live%\' and text like \'%www.twitch%\'"""
 	job1 = client.query(q1)
 
 	result1 = job1.result()
@@ -162,6 +162,12 @@ def q5(client):
 # SQL query for Question 6. You must edit this funtion.
 # This function should return a list containing the value for the number of triangles in the graph.
 def q6(client):
+	# Query Explanation:
+	# Table TRIANGLE: get all the triangles, there might be duplicates like: 1, 2, 3 and 3, 2, 1
+	# Table DISTINCT_TRIANGLE: manually sort the three points of the triangle and make sure that the a1 < a2 < a3, so
+	#						   the collection of the triangles must be unique
+	# Calculate the count of distinct triangles and rename the output
+ 
 	q = """
 	WITH TRIANGLE AS(
 	SELECT DISTINCT g1.src AS n1, g2.src AS n2, g3.src AS n3
@@ -221,6 +227,78 @@ def q6(client):
 def q7(client):
 
 	return []
+
+
+# PageRank algorithm.
+def pageRank(client, n_iter):
+
+	# Table GoOut:
+	#		node string: the name of the node
+	#		currank numeric: the current rank of the node
+	#		output numeric: the weight to transfer to each dst
+	#		nextrank: the rank of the next iteration
+	q1 = """
+		CREATE OR REPLACE TABLE dataset1.PAGERANK (node string, currrank numeric, output numeric, nextrank numeric);
+		"""
+	q2 = """
+		WITH NODELIST AS(
+		SELECT DISTINCT node
+		FROM(
+		SELECT DISTINCT src AS node
+		FROM dataset1.GRAPH
+
+		UNION ALL
+
+		SELECT DISTINCT dst AS node
+		FROM dataset1.GRAPH
+		))
+
+
+
+
+		INSERT INTO dataset1.GOOUT(node, currrank, output, nextrank) VALUES
+		SELECT src, COUNT(*), 1/COUNT(*)
+		FROM dataset1.GRAPH
+		GROUP BY src
+		"""
+
+	job = client.query(q1)
+	results = job.result()
+	job = client.query(q2)
+	results = job.result()
+
+	# You should replace dataset.distances with your dataset name and table name. 
+	q3 = """
+		CREATE OR REPLACE TABLE dataset1.PAGERANK AS
+		SELECT '{start}' as node, 0 as distance
+		""".format(start=start)
+	job = client.query(q3)
+	# Result will be empty, but calling makes the code wait for the query to complete
+	job.result()
+
+	for i in range(n_iter):
+		print("Step %d..." % (i+1))
+		q1 = """
+		INSERT INTO dataset.distances(node, distance)
+		SELECT distinct dst, {next_distance}
+		FROM dataset.bfs_graph
+			WHERE src IN (
+				SELECT node
+				FROM dataset.distances
+				WHERE distance = {curr_distance}
+				)
+			AND dst NOT IN (
+				SELECT node
+				FROM dataset.distances
+				)
+			""".format(
+				curr_distance=i,
+				next_distance=i+1
+			)
+		job = client.query(q1)
+		results = job.result()
+		# print(results)
+
 
 
 # Do not edit this function. This is for helping you develop your own iterative PageRank algorithm.
@@ -321,7 +399,7 @@ def main(pathtocred):
 	client = bigquery.Client.from_service_account_json(pathtocred)
 
 	#funcs_to_test = [q1, q2, q3, q4, q5, q6, q7]
-	funcs_to_test = [q6]
+	funcs_to_test = [q7]
 	#funcs_to_test = [testquery]
 	for func in funcs_to_test:
 		rows = func(client)
