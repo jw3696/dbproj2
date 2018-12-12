@@ -153,8 +153,20 @@ def q5(client):
 # SQL query for Question 6. You must edit this funtion.
 # This function should return a list containing the value for the number of triangles in the graph.
 def q6(client):
+	q = """
+	WITH TRIANGLE AS(
+	SELECT DISTINCT g1.src, g2.src, g3.src
+	FROM GRAPH AS g1 JOIN GRAPH AS g2 ON g1.dst = g2.src JOIN GRAPH AS g3 ON g2.dst = g3.src
+	WHERE g1.src = g3.dst AND g1.src != g2.src AND g2.src != g1.src
+	)
 
-	return []
+	
+	"""
+
+	job = client.query(q)
+
+	result = job.result()
+	return list(result)
 
 # SQL query for Question 7. You must edit this funtion.
 # This function should return a list containing the twitter username and their corresponding PageRank.
