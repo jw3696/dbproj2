@@ -1,5 +1,6 @@
 import click
 from google.cloud import bigquery
+import pandas as pd
 
 uni1 = 'jw3696' # Your uni
 uni2 = 'hz2562' # Partner's uni. If you don't have a partner, put None
@@ -120,7 +121,7 @@ def q5(client):
 	WHERE src IN (SELECT twitter_username FROM UNPOPULAR)
 	)
 
-	SELECT IEEE_DIVIDE((SELECT COUNT(*) FROM SAMPLE WHERE dst IN (SELECT twitter_username FROM POPULAR)),
+	SELECT SAFE_DIVIDE((SELECT COUNT(*) FROM SAMPLE WHERE dst IN (SELECT twitter_username FROM POPULAR)),
 	(SELECT COUNT(*) FROM SAMPLE)) AS popular_unpopular
 	"""
 
@@ -203,23 +204,202 @@ def q6(client):
 # This function should return a list containing the twitter username and their corresponding PageRank.
 def q7(client):
 
+	
+
 	return []
 
 
 # PageRank algorithm.
 def pageRank(client, n_iter):
+	q = """
+	CREATE OR REPLACE TABLE dataset1.PAGERANK (node string, output numeric, currrank numeric, nextrank numeric) AS
+	SELECT n.node as node, g.output AS output, 1 AS currank, 0 AS nextrank 
+	FROM 
+  (SELECT DISTINCT node
+	FROM(
+	SELECT DISTINCT src AS node
+	FROM dataset1.GRAPH
 
-	# Table GoOut:
+	UNION ALL
+
+	SELECT DISTINCT dst AS node
+	FROM dataset1.GRAPH
+	)) AS n 
+  
+  LEFT OUTER JOIN 
+  
+  (SELECT src AS node, SAFE_DIVIDE(1,COUNT(*)) AS output
+	FROM dataset1.GRAPH
+	GROUP BY src
+	) AS g ON n.node = g.node
+	"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	q100 = """
+	WITH NODELIST AS(
+	SELECT DISTINCT node
+	FROM(
+	SELECT DISTINCT src AS node
+	FROM dataset1.GRAPH
+
+	UNION ALL
+
+	SELECT DISTINCT dst AS node
+	FROM dataset1.GRAPH
+	)),
+
+	GOOUT AS(
+	SELECT src AS node, SAFE_DIVIDE(1,COUNT(*)) AS output
+	FROM dataset1.GRAPH
+	GROUP BY src
+	)
+
+	SELECT n.node as node, g.output AS output, 1 AS currank, 0 AS nextrank 
+	FROM NODELIST AS n LEFT OUTER JOIN GOOUT AS g ON n.node = g.node 
+	"""
+
+	q100 ="""
+	SELECT DISTINCT COUNT(twitter_username)
+	FROM 
+
+	"""
+
+	job = client.query(q)
+	results = job.result()
+	pageRank = job.to_dataframe()
+
+	# Table PageRank:
 	#		node string: the name of the node
 	#		currank numeric: the current rank of the node
 	#		output numeric: the weight to transfer to each dst
 	#		nextrank: the rank of the next iteration
+
+
+CREATE OR REPLACE TABLE dataset1.PAGERANK (node string, output numeric, currrank numeric, nextrank numeric) AS
+	SELECT n.node as node, CAST(g.output AS numeric) AS output, 1 AS currank, 0 AS nextrank 
+	FROM 
+  (SELECT DISTINCT node
+	FROM(
+	SELECT DISTINCT src AS node
+	FROM dataset1.GRAPH
+
+	UNION ALL
+
+	SELECT DISTINCT dst AS node
+	FROM dataset1.GRAPH
+	)) AS n 
+  
+  LEFT OUTER JOIN 
+  
+  (SELECT src AS node, SAFE_DIVIDE(1,COUNT(*)) AS output
+	FROM dataset1.GRAPH
+	GROUP BY src
+	) AS g ON n.node = g.node;
+  
+
+
+SELECT name, O.out AS out, 1/6292 AS currRank, 0 AS nextRank
+FROM (
+  SELECT DISTINCT(twitter_username) AS name 
+  FROM `w4111-columbia.graph.tweets` 
+  GROUP BY twitter_username) AS node FULL JOIN (
+  SELECT src AS srcNode , 1/COUNT(*) AS out
+  FROM dataset1.GRAPH
+  GROUP BY src) AS O ON node.name = O.srcNode
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	q1 = """
-		CREATE OR REPLACE TABLE dataset1.PAGERANK (node string, currrank numeric, output numeric, nextrank numeric);
+		CREATE OR REPLACE TABLE dataset1.PAGERANK (node string, currrank FLOAT64, output FLOAT64, nextrank FLOAT64) AS
+		SELECT n.node as node, g.output AS output, 0 AS currank, 0 AS nextrank
+		FROM 	(SELECT DISTINCT node
+				FROM(
+				SELECT DISTINCT src AS node
+				FROM dataset1.GRAPH
+
+				UNION ALL
+
+				SELECT DISTINCT dst AS node
+				FROM dataset1.GRAPH
+				)) AS n 
+
+		LEFT OUTER JOIN 
+				
+				(SELECT src AS node, SAFE_DIVIDE(1,COUNT(*)) AS output
+				FROM dataset1.GRAPH
+				GROUP BY src) AS g 
+		
+		ON n.node = g.node 
 		"""
 	q2 = """
+	SELECT *
+	FROM dataset1.PAGERANK
+	WHERE output != 1.0 AND outp
+	ORDER BY output
+	LIMIT 20
+	"""
+
+
+
+
+
+
+
+
+
+
+	q3 = """
+		INSERT INTO PAGERANK
 		WITH NODELIST AS(
-		SELECT DISTINCT node
+		SELECT DISTINCT node, SAFE_DIVIDE(1, COUNT(*)) AS currank
 		FROM(
 		SELECT DISTINCT src AS node
 		FROM dataset1.GRAPH
@@ -228,27 +408,42 @@ def pageRank(client, n_iter):
 
 		SELECT DISTINCT dst AS node
 		FROM dataset1.GRAPH
-		))
+		)),
 
-
-
-
-		INSERT INTO dataset1.GOOUT(node, currrank, output, nextrank) VALUES
-		SELECT src, COUNT(*), 1/COUNT(*)
+		GOOUT AS(
+		SELECT src AS node, SAFE_DIVIDE(1,COUNT(*)) AS output
 		FROM dataset1.GRAPH
 		GROUP BY src
+		)
+
+		SELECT n.node as node, g.output AS output, 1 AS currank, 0 AS ne 
+		FROM NODELIST AS n LEFT OUTER JOIN GOOUT AS g ON n.node = g.node 
 		"""
 
-	job = client.query(q1)
-	results = job.result()
-	job = client.query(q2)
-	results = job.result()
+	"""
+		SELECT n.node, SAFE_DIVIDE(1, COUNT(*)) AS currank, g.output, 0 AS nextrank
+		FROM NODELIST AS n LEFT OUTER JOIN GOOUT AS g
+		ON n.node = g.node;
+	"""
+	#INSERT INTO dataset1.PAGERANK(node, currrank, output, nextrank) VALUES
 
+	q3 = """
+	SELECT *
+	FROM dataset1.PAGERANK
+	LIMIT 20
+	"""
+
+	
+
+
+
+	'''
 	# You should replace dataset.distances with your dataset name and table name. 
 	q3 = """
 		CREATE OR REPLACE TABLE dataset1.PAGERANK AS
 		SELECT '{start}' as node, 0 as distance
 		""".format(start=start)
+	
 	job = client.query(q3)
 	# Result will be empty, but calling makes the code wait for the query to complete
 	job.result()
@@ -275,6 +470,7 @@ def pageRank(client, n_iter):
 		job = client.query(q1)
 		results = job.result()
 		# print(results)
+	'''
 
 
 
