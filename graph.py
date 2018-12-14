@@ -145,53 +145,29 @@ def q6(client):
 	# Calculate the count of distinct triangles and rename the output
  
 	q = """
-	WITH TRIANGLE AS(
-	SELECT DISTINCT g1.src AS n1, g2.src AS n2, g3.src AS n3
-	FROM dataset1.GRAPH AS g1 JOIN dataset1.GRAPH AS g2 ON g1.dst = g2.src JOIN dataset1.GRAPH AS g3 ON g2.dst = g3.src
-	WHERE g1.src = g3.dst AND g1.src != g2.src AND g2.src != g3.src AND g3.src != g1.src
-	),
-	
-	DISTINCT_TRIANGLE AS(
-	SELECT DISTINCT a1, a2, a3
-	FROM (
-	SELECT n1 AS a1, n2 AS a2, n3 AS a3 
-	FROM TRIANGLE
-	WHERE n1 < n2 AND n2 < n3
-
-	UNION ALL
-	
-	SELECT n1 AS a1, n3 AS a2, n2 AS a3
-	FROM TRIANGLE
-	WHERE n1 < n3 AND n3 < n2
-
-	UNION ALL
-
-	SELECT n2 AS a1, n1 AS a2, n3 AS a3
-	FROM TRIANGLE
-	WHERE n2 < n1 AND n1 < n3
-
-	UNION ALL
-
-	SELECT n2 AS a1, n3 AS a2, n1 AS a3
-	FROM TRIANGLE
-	WHERE n2 < n3 AND n3 < n1
-
-	UNION ALL
-
-	SELECT n3 AS a1, n1 AS a2, n2 AS a3
-	FROM TRIANGLE
-	WHERE n3 < n1 AND n1 < n2
-
-	UNION ALL
-
-	SELECT n3 AS a1, n2 AS a2, n1 AS a3
-	FROM TRIANGLE
-	WHERE n3 < n2 AND n2 < n1
-	))
-
-	SELECT COUNT(*) AS no_of_triangles
-	FROM DISTINCT_TRIANGLE
+	WITH ref1 AS (
+		SELECT *
+		FROM dataset1.GRAPH
+		WHERE dst > src),
+		  
+		ref2 AS (
+		SELECT *
+		FROM dataset1.GRAPH
+		WHERE dst < src),
+		  
+		tri AS (
+		SELECT DISTINCT g1.src AS n1, g2.src AS n2, g3.src AS n3
+		FROM ref1 AS g1, ref1 AS g2, ref2 AS g3
+		WHERE g1.dst = g2.src AND g2.dst = g3.src AND g3.dst = g1.src
+		UNION DISTINCT
+		SELECT DISTINCT g1.src AS n1, g2.src AS n2, g3.src AS n3
+		FROM ref2 AS g1, ref2 AS g2, ref1 AS g3
+		WHERE g1.dst = g2.src AND g2.dst = g3.src AND g3.dst = g1.src)
+		  
+	SELECT COUNT(*)
+	FROM tri
 	"""
+
 
 	job = client.query(q)
 
@@ -332,7 +308,9 @@ def loop(client, num_iter):
 		job = client.query(q)
 		results = job.result()
 
+	return []
 
+	
 
 
 # Do not edit this function. This is for helping you develop your own iterative PageRank algorithm.
@@ -486,7 +464,7 @@ def main(pathtocred):
 	client = bigquery.Client.from_service_account_json(pathtocred)
 
 	#funcs_to_test = [q1, q2, q3, q4, q5, q6, q7]
-	funcs_to_test = [q7]
+	funcs_to_test = [pageRank]
 	#funcs_to_test = [testquery]
 	for func in funcs_to_test:
 		rows = func(client)
