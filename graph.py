@@ -176,7 +176,12 @@ def q6(client):
 
 	#return []
 
-def drop_table_begin(client):
+# SQL query for Question 7. You must edit this funtion.
+# This function should return a list containing the twitter username and their corresponding PageRank.
+def q7(client):
+	num_iter = 20
+
+	# drop the old table
 	q = """
 	DROP TABLE IF EXISTS dataset1.UNION;
 	"""
@@ -188,35 +193,6 @@ def drop_table_begin(client):
 	"""
 	job = client.query(q)
 	results = job.result()
-
-
-def drop_table_loop(client):
-	q = """
-	DROP TABLE IF EXISTS dataset1.JOINED;
-	"""
-	job = client.query(q)
-	results = job.result()
-
-	q = """
-	DROP TABLE IF EXISTS dataset1.DEDUCTION;
-	"""
-	job = client.query(q)
-	results = job.result()
-
-	q = """
-	DROP TABLE IF EXISTS dataset1.ADDITION;
-	"""
-	job = client.query(q)
-	results = job.result()
-
-
-# SQL query for Question 7. You must edit this funtion.
-# This function should return a list containing the twitter username and their corresponding PageRank.
-def q7(client):
-	num_iter = 1
-
-	# drop the old table
-	drop_table_begin(client)
 
 	# save the union table, which is the universe of the node
 	# including the distinct dst + distinct src in GRAPH
@@ -252,12 +228,25 @@ def q7(client):
 
 	save_table_generic(client, q, 'RANK')
 
-	loop(client, num_iter)
-
-def loop(client, num_iter):
 	for i in range(0,num_iter):
 		# drop useless table
-		drop_table_loop(client)
+		q = """
+		DROP TABLE IF EXISTS dataset1.JOINED;
+		"""
+		job = client.query(q)
+		results = job.result()
+
+		q = """
+		DROP TABLE IF EXISTS dataset1.DEDUCTION;
+		"""
+		job = client.query(q)
+		results = job.result()
+
+		q = """
+		DROP TABLE IF EXISTS dataset1.ADDITION;
+		"""
+		job = client.query(q)
+		results = job.result()
 
 		q = """
 		SELECT g.src AS src,  g.dst AS dst, r.currank AS currank, r.output AS output
@@ -308,7 +297,16 @@ def loop(client, num_iter):
 		job = client.query(q)
 		results = job.result()
 
-	return []
+	q = """
+	SELECT node
+	FROM dataset1.RANK
+	ORDER BY currank DESC
+	LIMIT 100
+	"""
+	job = client.query(q)
+	results = job.result()
+	
+	return list(results)
 
 	
 
@@ -464,7 +462,7 @@ def main(pathtocred):
 	client = bigquery.Client.from_service_account_json(pathtocred)
 
 	#funcs_to_test = [q1, q2, q3, q4, q5, q6, q7]
-	funcs_to_test = [pageRank]
+	funcs_to_test = [q7]
 	#funcs_to_test = [testquery]
 	for func in funcs_to_test:
 		rows = func(client)
