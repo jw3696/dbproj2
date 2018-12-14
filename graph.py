@@ -200,277 +200,138 @@ def q6(client):
 
 	#return []
 
+def drop_table_begin(client):
+	q = """
+	DROP TABLE IF EXISTS dataset1.UNION;
+	"""
+	job = client.query(q)
+	results = job.result()
+
+	q = """
+	DROP TABLE IF EXISTS dataset1.RANK;
+	"""
+	job = client.query(q)
+	results = job.result()
+
+
+def drop_table_loop(client):
+	q = """
+	DROP TABLE IF EXISTS dataset1.JOINED;
+	"""
+	job = client.query(q)
+	results = job.result()
+
+	q = """
+	DROP TABLE IF EXISTS dataset1.DEDUCTION;
+	"""
+	job = client.query(q)
+	results = job.result()
+
+	q = """
+	DROP TABLE IF EXISTS dataset1.ADDITION;
+	"""
+	job = client.query(q)
+	results = job.result()
+
+
 # SQL query for Question 7. You must edit this funtion.
 # This function should return a list containing the twitter username and their corresponding PageRank.
 def q7(client):
+	num_iter = 1
 
-	
+	# drop the old table
+	drop_table_begin(client)
 
-	return []
-
-
-# PageRank algorithm.
-def pageRank(client, n_iter):
+	# save the union table, which is the universe of the node
+	# including the distinct dst + distinct src in GRAPH
 	q = """
-	CREATE OR REPLACE TABLE dataset1.PAGERANK (node string, output numeric, currrank numeric, nextrank numeric) AS
-	SELECT n.node as node, g.output AS output, 1 AS currank, 0 AS nextrank 
+	SELECT node
 	FROM 
-  (SELECT DISTINCT node
-	FROM(
-	SELECT DISTINCT src AS node
-	FROM dataset1.GRAPH
-
-	UNION ALL
-
-	SELECT DISTINCT dst AS node
-	FROM dataset1.GRAPH
-	)) AS n 
-  
-  LEFT OUTER JOIN 
-  
-  (SELECT src AS node, SAFE_DIVIDE(1,COUNT(*)) AS output
-	FROM dataset1.GRAPH
-	GROUP BY src
-	) AS g ON n.node = g.node
+	(SELECT dst AS node
+	FROM dataset1.GRAPH), 
+	(SELECT src AS node
+	FROM dataset1.GRAPH)
+	GROUP BY node;
 	"""
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	q100 = """
-	WITH NODELIST AS(
-	SELECT DISTINCT node
-	FROM(
-	SELECT DISTINCT src AS node
-	FROM dataset1.GRAPH
-
-	UNION ALL
-
-	SELECT DISTINCT dst AS node
-	FROM dataset1.GRAPH
-	)),
-
-	GOOUT AS(
-	SELECT src AS node, SAFE_DIVIDE(1,COUNT(*)) AS output
-	FROM dataset1.GRAPH
-	GROUP BY src
-	)
-
-	SELECT n.node as node, g.output AS output, 1 AS currank, 0 AS nextrank 
-	FROM NODELIST AS n LEFT OUTER JOIN GOOUT AS g ON n.node = g.node 
-	"""
-
-	q100 ="""
-	SELECT DISTINCT COUNT(twitter_username)
-	FROM 
-
-	"""
-
-	job = client.query(q)
-	results = job.result()
-	pageRank = job.to_dataframe()
-
-	# Table PageRank:
+	save_table_generic(client, q, 'UNION')
+	
+	# save a table
+	# Table RANK:
 	#		node string: the name of the node
 	#		currank numeric: the current rank of the node
 	#		output numeric: the weight to transfer to each dst
 	#		nextrank: the rank of the next iteration
+	q = """
+	SELECT u.node as node, g.output AS output, 1/779443 AS currank
+	FROM dataset1.UNION as u
 
+	LEFT OUTER JOIN
 
-CREATE OR REPLACE TABLE dataset1.PAGERANK (node string, output numeric, currrank numeric, nextrank numeric) AS
-	SELECT n.node as node, CAST(g.output AS numeric) AS output, 1 AS currank, 0 AS nextrank 
-	FROM 
-  (SELECT DISTINCT node
-	FROM(
-	SELECT DISTINCT src AS node
-	FROM dataset1.GRAPH
-
-	UNION ALL
-
-	SELECT DISTINCT dst AS node
-	FROM dataset1.GRAPH
-	)) AS n 
-  
-  LEFT OUTER JOIN 
-  
-  (SELECT src AS node, SAFE_DIVIDE(1,COUNT(*)) AS output
+	(SELECT src, 1/COUNT(*) AS output
 	FROM dataset1.GRAPH
 	GROUP BY src
-	) AS g ON n.node = g.node;
-  
-
-
-SELECT name, O.out AS out, 1/6292 AS currRank, 0 AS nextRank
-FROM (
-  SELECT DISTINCT(twitter_username) AS name 
-  FROM `w4111-columbia.graph.tweets` 
-  GROUP BY twitter_username) AS node FULL JOIN (
-  SELECT src AS srcNode , 1/COUNT(*) AS out
-  FROM dataset1.GRAPH
-  GROUP BY src) AS O ON node.name = O.srcNode
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	q1 = """
-		CREATE OR REPLACE TABLE dataset1.PAGERANK (node string, currrank FLOAT64, output FLOAT64, nextrank FLOAT64) AS
-		SELECT n.node as node, g.output AS output, 0 AS currank, 0 AS nextrank
-		FROM 	(SELECT DISTINCT node
-				FROM(
-				SELECT DISTINCT src AS node
-				FROM dataset1.GRAPH
-
-				UNION ALL
-
-				SELECT DISTINCT dst AS node
-				FROM dataset1.GRAPH
-				)) AS n 
-
-		LEFT OUTER JOIN 
-				
-				(SELECT src AS node, SAFE_DIVIDE(1,COUNT(*)) AS output
-				FROM dataset1.GRAPH
-				GROUP BY src) AS g 
-		
-		ON n.node = g.node 
-		"""
-	q2 = """
-	SELECT *
-	FROM dataset1.PAGERANK
-	WHERE output != 1.0 AND outp
-	ORDER BY output
-	LIMIT 20
+	) AS g ON u.node = g.src
 	"""
 
+	save_table_generic(client, q, 'RANK')
+
+	loop(client, num_iter)
+
+def loop(client, num_iter):
+	for i in range(0,num_iter):
+		# drop useless table
+		drop_table_loop(client)
+
+		q = """
+		SELECT g.src AS src,  g.dst AS dst, r.currank AS currank, r.output AS output
+		FROM dataset1.GRAPH AS g JOIN dataset1.RANK AS r
+		ON g.src = r.node
+		"""
+
+		save_table_generic(client, q, 'JOINED')
+
+		# calculate thee addition of the current iteration
+		q = """
+		SELECT dst, SUM(output * currank) AS val
+		FROM dataset1.JOINED
+		GROUP BY dst
+		"""
+		save_table_generic(client, q, 'ADDITION')
 
 
 
-
-
-
-
-
-
-	q3 = """
-		INSERT INTO PAGERANK
-		WITH NODELIST AS(
-		SELECT DISTINCT node, SAFE_DIVIDE(1, COUNT(*)) AS currank
-		FROM(
-		SELECT DISTINCT src AS node
-		FROM dataset1.GRAPH
-
-		UNION ALL
-
-		SELECT DISTINCT dst AS node
-		FROM dataset1.GRAPH
-		)),
-
-		GOOUT AS(
-		SELECT src AS node, SAFE_DIVIDE(1,COUNT(*)) AS output
-		FROM dataset1.GRAPH
+		# calculate the deduction of the current iteration
+		q = """
+		SELECT src, SUM(output * currank) AS val
+		FROM dataset1.JOINED
 		GROUP BY src
-		)
-
-		SELECT n.node as node, g.output AS output, 1 AS currank, 0 AS ne 
-		FROM NODELIST AS n LEFT OUTER JOIN GOOUT AS g ON n.node = g.node 
 		"""
 
-	"""
-		SELECT n.node, SAFE_DIVIDE(1, COUNT(*)) AS currank, g.output, 0 AS nextrank
-		FROM NODELIST AS n LEFT OUTER JOIN GOOUT AS g
-		ON n.node = g.node;
-	"""
-	#INSERT INTO dataset1.PAGERANK(node, currrank, output, nextrank) VALUES
+		save_table_generic(client, q, 'DEDUCTION')
 
-	q3 = """
-	SELECT *
-	FROM dataset1.PAGERANK
-	LIMIT 20
-	"""
+		# do the calculation
+		
+		q = """
+		UPDATE dataset1.RANK
+		SET  currank = currank + a.val
+		FROM dataset1.ADDITION AS a
+		WHERE node = a.dst
+		"""
 
-	
-
-
-
-	'''
-	# You should replace dataset.distances with your dataset name and table name. 
-	q3 = """
-		CREATE OR REPLACE TABLE dataset1.PAGERANK AS
-		SELECT '{start}' as node, 0 as distance
-		""".format(start=start)
-	
-	job = client.query(q3)
-	# Result will be empty, but calling makes the code wait for the query to complete
-	job.result()
-
-	for i in range(n_iter):
-		print("Step %d..." % (i+1))
-		q1 = """
-		INSERT INTO dataset.distances(node, distance)
-		SELECT distinct dst, {next_distance}
-		FROM dataset.bfs_graph
-			WHERE src IN (
-				SELECT node
-				FROM dataset.distances
-				WHERE distance = {curr_distance}
-				)
-			AND dst NOT IN (
-				SELECT node
-				FROM dataset.distances
-				)
-			""".format(
-				curr_distance=i,
-				next_distance=i+1
-			)
-		job = client.query(q1)
+		job = client.query(q)
 		results = job.result()
-		# print(results)
-	'''
+
+		q = """
+		UPDATE dataset1.RANK
+		SET  currank = currank - d.val
+		FROM dataset1.DEDUCTION AS d
+		WHERE node = d.src
+		"""
+
+		job = client.query(q)
+		results = job.result()
+
 
 
 
@@ -566,6 +427,35 @@ def save_table():
 	query_job.result()  # Waits for the query to finish
 	print('Query results loaded to table {}'.format(table_ref.path))
 
+
+
+
+
+def save_table_generic(client, sql, name):
+	dataset_id = 'dataset1'
+
+	job_config = bigquery.QueryJobConfig()
+	# Set use_legacy_sql to True to use legacy SQL syntax.
+	job_config.use_legacy_sql = True
+	# Set the destination table
+	table_ref = client.dataset(dataset_id).table(name)
+	job_config.destination = table_ref
+	job_config.allow_large_results = True
+
+	# Start the query, passing in the extra configuration.
+	query_job = client.query(
+		sql,
+		# Location must match that of the dataset(s) referenced in the query
+		# and of the destination table.
+		location='US',
+		job_config=job_config)  # API request - starts the query
+
+	query_job.result()  # Waits for the query to finish
+	print('Query results loaded to table {}'.format(table_ref.path))
+
+
+
+
 def save(sql):
 	client = bigquery.Client()
 	dataset_id = 'dataset1'
@@ -574,7 +464,7 @@ def save(sql):
 	# Set use_legacy_sql to True to use legacy SQL syntax.
 	job_config.use_legacy_sql = True
 	# Set the destination table
-	table_ref = client.dataset(dataset_id).table('GRAPH')
+	table_ref = client.dataset(dataset_id).table('PAGERANK')
 	job_config.destination = table_ref
 	job_config.allow_large_results = True
 	#sql = """select * from [w4111-columbia.graph.tweets] limit 3"""
